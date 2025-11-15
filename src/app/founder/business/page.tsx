@@ -20,6 +20,16 @@ export default async function BusinessDashboardPage() {
       orderBy: { createdAt: 'desc' }
     }));
 
+  const previousSnapshot = metricsSnapshot
+    ? await prisma.metricsSnapshot.findFirst({
+        where: {
+          tenantId: DEMO_TENANT_ID,
+          createdAt: { lt: metricsSnapshot.createdAt }
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+    : null;
+
   const recentEvents = await prisma.event.findMany({
     where: { tenantId: DEMO_TENANT_ID },
     orderBy: { createdAt: 'desc' },
@@ -30,6 +40,67 @@ export default async function BusinessDashboardPage() {
     latestSummary && latestSummary.state === 'PENDING_APPROVAL'
       ? latestSummary.id
       : undefined;
+
+  const changes: string[] = [];
+  if (metricsSnapshot && previousSnapshot) {
+    const mrrDelta = metricsSnapshot.mrr - previousSnapshot.mrr;
+    const customersDelta =
+      metricsSnapshot.activeCustomers - previousSnapshot.activeCustomers;
+
+    if (mrrDelta !== 0) {
+      changes.push(
+        `MRR ${
+          mrrDelta > 0 ? 'increased' : 'decreased'
+        } by $${Math.abs(mrrDelta).toLocaleString()} since last snapshot.`
+      );
+    }
+    if (customersDelta !== 0) {
+      changes.push(
+        `Active customers ${
+          customersDelta > 0 ? 'increased' : 'decreased'
+        } by ${Math.abs(customersDelta)}.`
+      );
+    }
+    if (metricsSnapshot.newMrr !== previousSnapshot.newMrr) {
+      const delta = metricsSnapshot.newMrr - previousSnapshot.newMrr;
+      changes.push(
+        `New MRR (30d) changed by $${delta.toLocaleString()} compared to the prior period.`
+      );
+    }
+    if (metricsSnapshot.churnedMrr !== previousSnapshot.churnedMrr) {
+      const delta = metricsSnapshot.churnedMrr - previousSnapshot.churnedMrr;
+      changes.push(
+        `Churned MRR (30d) changed by $${delta.toLocaleString()} compared to the prior period.`
+      );
+    }
+  }
+
+  const problems: string[] = [];
+  const opportunities: string[] = [];
+
+  if (metricsSnapshot) {
+    if (metricsSnapshot.churnedMrr > 0) {
+      problems.push('Churned MRR is non-zero this period.');
+    }
+    if (metricsSnapshot.newMrr === 0) {
+      problems.push('No new MRR recorded in the last 30 days.');
+    }
+    if (metricsSnapshot.newMrr > metricsSnapshot.churnedMrr) {
+      opportunities.push(
+        'Net new MRR is positive — consider doubling down on what worked.'
+      );
+    }
+  }
+
+  if (!problems.length && !opportunities.length) {
+    opportunities.push('No major issues detected. Stay the course this week.');
+  }
+
+  const recommendedMoves =
+    latestSummary?.recommendedActions
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean) ?? [];
 
   return (
     <div>
@@ -96,21 +167,67 @@ export default async function BusinessDashboardPage() {
             >
               {latestSummary.narrative}
             </pre>
-            <h3>Recommended Actions</h3>
-            <pre
-              style={{
-                whiteSpace: 'pre-wrap',
-                background: '#111827',
-                padding: '1rem',
-                borderRadius: '0.5rem'
-              }}
-            >
-              {latestSummary.recommendedActions}
-            </pre>
+            <h3>This Week&apos;s Recommended Moves</h3>
+            {recommendedMoves.length ? (
+              <ul>
+                {recommendedMoves.map((action, idx) => (
+                  <li key={idx}>{action}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>No recommended moves yet.</p>
+            )}
           </div>
         ) : (
           <p>No summary generated yet. Run the weekly summary flow.</p>
         )}
+      </section>
+
+      <section>
+        <h2>What Changed This Week</h2>
+        {metricsSnapshot ? (
+          changes.length ? (
+            <ul>
+              {changes.map((change, idx) => (
+                <li key={idx}>{change}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>No prior snapshot to compare against yet.</p>
+          )
+        ) : (
+          <p>No metrics snapshot yet.</p>
+        )}
+      </section>
+
+      <section>
+        <h2>Problems &amp; Opportunities</h2>
+        <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+          <div>
+            <h3>Problems</h3>
+            {problems.length ? (
+              <ul>
+                {problems.map((problem, idx) => (
+                  <li key={idx}>{problem}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>No major problems flagged from metrics.</p>
+            )}
+          </div>
+          <div>
+            <h3>Opportunities</h3>
+            {opportunities.length ? (
+              <ul>
+                {opportunities.map((opportunity, idx) => (
+                  <li key={idx}>{opportunity}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>No obvious opportunities surfaced this week.</p>
+            )}
+          </div>
+        </div>
       </section>
 
       <section>

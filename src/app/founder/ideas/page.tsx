@@ -22,6 +22,45 @@ export default async function IdeasDashboardPage() {
     take: 10
   });
 
+  const columns: Record<
+    string,
+    Awaited<ReturnType<typeof prisma.idea.findMany>>[number][]
+  > = {
+    BACKLOG: [],
+    SCORING: [],
+    EXPERIMENTING: [],
+    VALIDATED: [],
+    KILLED: []
+  };
+
+  for (const idea of ideas) {
+    if (columns[idea.state]) {
+      columns[idea.state].push(idea);
+    } else {
+      columns.BACKLOG.push(idea);
+    }
+  }
+
+  const topCandidates = ideas
+    .filter(
+      (idea) =>
+        idea.state === 'EXPERIMENTING' || idea.state === 'VALIDATED'
+    )
+    .sort(
+      (a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0)
+    )
+    .slice(0, 3);
+
+  const activeExperiments = ideas.flatMap((idea) =>
+    idea.experiments.map((experiment) => ({
+      ideaTitle: idea.title,
+      id: experiment.id,
+      type: experiment.type,
+      description: experiment.description,
+      result: experiment.result
+    }))
+  );
+
   return (
     <div>
       <h1>Founder Dashboard – Ideas</h1>
@@ -92,9 +131,64 @@ export default async function IdeasDashboardPage() {
         {ideas.length === 0 ? (
           <p>No ideas yet.</p>
         ) : (
-          ideas.map((idea) => (
-            <IdeaCard key={idea.id} idea={idea} />
-          ))
+          <div
+            style={{
+              display: 'flex',
+              gap: '1.5rem',
+              alignItems: 'flex-start',
+              overflowX: 'auto'
+            }}
+          >
+            {Object.entries(columns).map(([state, stateIdeas]) => (
+              <div
+                key={state}
+                style={{
+                  minWidth: '220px'
+                }}
+              >
+                <h3>{state}</h3>
+                {stateIdeas.length === 0 ? (
+                  <p style={{ fontSize: '0.9rem' }}>No ideas in this column.</p>
+                ) : (
+                  stateIdeas.map((idea) => (
+                    <IdeaCard key={idea.id} idea={idea} />
+                  ))
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2>Top Candidates</h2>
+        {topCandidates.length === 0 ? (
+          <p>No scored ideas yet. Run filters & scoring on some ideas.</p>
+        ) : (
+          <ul>
+            {topCandidates.map((idea) => (
+              <li key={idea.id}>
+                <strong>{idea.title}</strong> – score{' '}
+                {idea.totalScore ?? '-'} ({idea.state})
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h2>Active Experiments</h2>
+        {activeExperiments.length === 0 ? (
+          <p>No experiments logged yet.</p>
+        ) : (
+          <ul>
+            {activeExperiments.map((exp) => (
+              <li key={exp.id}>
+                <strong>{exp.ideaTitle}</strong> – [{exp.type}] {exp.description}{' '}
+                → {exp.result}
+              </li>
+            ))}
+          </ul>
         )}
       </section>
     </div>
