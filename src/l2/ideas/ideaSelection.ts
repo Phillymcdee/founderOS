@@ -1,0 +1,149 @@
+import { prisma } from '@/l0/db';
+import { logEvent } from '@/l0/events';
+import { getIdeaFilters } from '@/l3/ideasIntent';
+import {
+  draftTransformationStatement,
+  runHardFilters,
+  scoreIdea
+} from '@/l1/ideas/ideaScoring';
+
+export async function evaluateIdea(tenantId: string, ideaId: string) {
+  const idea = await prisma.idea.findFirst({
+    where: { id: ideaId, tenantId }
+  });
+  if (!idea) throw new Error('Idea not found');
+
+  const filters = await getIdeaFilters(tenantId);
+
+  const transformation =
+    idea.transformation ?? draftTransformationStatement(idea);
+
+  const hardFilters = runHardFilters(idea, filters);
+
+  let state = 'BACKLOG';
+  let scores = {
+    painFrequencyScore: idea.painFrequencyScore ?? 1,
+    agentLeverageScore: idea.agentLeverageScore ?? 1,
+    dataSurfaceScore: idea.dataSurfaceScore ?? 1,
+    repeatabilityScore: idea.repeatabilityScore ?? 1,
+    totalScore: idea.totalScore ?? 4
+  };
+
+  const passesAll = Object.values(hardFilters).every(Boolean);
+  if (passesAll) {
+    scores = scoreIdea(idea, filters);
+    state =
+      scores.totalScore >= filters.minScoreForExperiment
+        ? 'EXPERIMENTING'
+        : 'SCORING';
+  } else {
+    state = 'KILLED';
+  }
+
+  const updated = await prisma.idea.update({
+    where: { id: ideaId },
+    data: {
+      transformation,
+      ...hardFilters,
+      ...scores,
+      state
+    }
+  });
+
+  await logEvent({
+    tenantId,
+    type: 'IDEA_SCORED',
+    primaryEntityId: ideaId,
+    payload: {
+      hardFilters,
+      scores,
+      state
+    }
+  });
+
+  return updated;
+}
+
+export async function updateIdeaState(
+  tenantId: string,
+  ideaId: string,
+  state: string
+) {
+  const updated = await prisma.idea.update({
+    where: { id: ideaId, tenantId },
+    data: { state }
+  });
+
+  await logEvent({
+    tenantId,
+    type: 'IDEA_STATE_CHANGED',
+    primaryEntityId: ideaId,
+    payload: { state }
+  });
+
+  return updated;
+}
+
+export async function logIdeaExperiment(params: {
+  tenantId: string;
+  ideaId: string;
+  type: 'SIGNAL' | 'WORKFLOW' | 'AGENT_OWNERSHIP';
+  description: string;
+  result?: 'PENDING' | 'PASSED' | 'FAILED' | 'INCONCLUSIVE';
+}) {
+  const experiment = await prisma.ideaExperiment.create({
+    data: {
+      tenantId: params.tenantId,
+      ideaId: params.ideaId,
+      type: params.type,
+      description: params.description,
+      result: params.result ?? 'PENDING'
+    }
+  });
+
+  await logEvent({
+    tenantId: params.tenantId,
+    type: 'IDEA_EXPERIMENT_LOGGED',
+    primaryEntityId: params.ideaId,
+    payload: {
+      experimentId: experiment.id,
+      type: params.type,
+      result: experiment.result
+    }
+  });
+
+  return experiment;
+}
+
+export async function runIdeasRefreshFlow(tenantId: string) {
+  const flowInstanceId = `ideas-refresh-${Date.now()}`;
+
+  await logEvent({
+    tenantId,
+    type: 'FLOW_STARTED',
+    flowInstanceId,
+    payload: { flow: 'ideasRefreshFlow' }
+  });
+
+  const ideas = await prisma.idea.findMany({
+    where: { tenantId }
+  });
+
+  const results = [];
+
+  for (const idea of ideas) {
+    const updated = await evaluateIdea(tenantId, idea.id);
+    results.push({ ideaId: idea.id, state: updated.state });
+  }
+
+  await logEvent({
+    tenantId,
+    type: 'FLOW_COMPLETED',
+    flowInstanceId,
+    payload: { flow: 'ideasRefreshFlow', results }
+  });
+
+  return results;
+}
+
+

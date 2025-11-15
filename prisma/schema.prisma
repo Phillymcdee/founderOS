@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  accounts          Account[]
+  subscriptions     Subscription[]
+  metricsSnapshots  MetricsSnapshot[]
+  founderSummaries  FounderSummary[]
+  events            Event[]
+  ideas             Idea[]
+  ideaExperiments   IdeaExperiment[]
+  ideaSignals       IdeaSignal[]
+}
+
+model Account {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  createdAt DateTime @default(now())
+
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id           String   @id @default(cuid())
+  tenantId     String
+  accountId    String
+  mrr          Int
+  plan         String
+  status       String
+  startedAt    DateTime
+  cancelledAt  DateTime?
+  createdAt    DateTime @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  account Account @relation(fields: [accountId], references: [id])
+}
+
+model MetricsSnapshot {
+  id           String   @id @default(cuid())
+  tenantId     String
+  periodEnd    DateTime
+  mrr          Int
+  newMrr       Int
+  churnedMrr   Int
+  activeCustomers Int
+  runwayMonths Int?
+  createdAt    DateTime @default(now())
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  founderSummaries FounderSummary[]
+}
+
+model FounderSummary {
+  id              String   @id @default(cuid())
+  tenantId        String
+  metricsSnapshotId String
+  periodEnd       DateTime
+  narrative       String
+  recommendedActions String
+  state           String   // DRAFT, PENDING_APPROVAL, PUBLISHED, ARCHIVED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id])
+  metricsSnapshot MetricsSnapshot @relation(fields: [metricsSnapshotId], references: [id])
+}
+
+model Event {
+  id            String   @id @default(cuid())
+  tenantId      String
+  type          String
+  payload       Json
+  flowInstanceId String?
+  primaryEntityId String?
+  createdAt     DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model Idea {
+  id             String   @id @default(cuid())
+  tenantId       String
+  title          String
+  description    String
+  transformation String?
+  icpDescription String?
+  arpuEstimate   Int?
+  regulatedConcern Boolean @default(false)
+  manualWorkHeavy Boolean @default(false)
+  founderFitSignal Boolean @default(true)
+
+  passesMarket       Boolean @default(false)
+  passesRegulation   Boolean @default(false)
+  passesAgentFit     Boolean @default(false)
+  passesFounderFit   Boolean @default(false)
+
+  painFrequencyScore    Int? // 1-3
+  agentLeverageScore    Int?
+  dataSurfaceScore      Int?
+  repeatabilityScore    Int?
+  totalScore            Int?
+
+  notesTrustRisk        String?
+  notesGtm              String?
+  notesFounderAdvantage String?
+
+  state           String   @default("BACKLOG")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  experiments IdeaExperiment[]
+}
+
+model IdeaExperiment {
+  id          String   @id @default(cuid())
+  tenantId    String
+  ideaId      String
+  type        String   // SIGNAL, WORKFLOW, AGENT_OWNERSHIP
+  description String
+  result      String?  // PENDING, PASSED, FAILED, INCONCLUSIVE
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  idea   Idea   @relation(fields: [ideaId], references: [id])
+}
+
+model IdeaSignal {
+  id        String   @id @default(cuid())
+  tenantId  String
+  source    String
+  content   String
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+
