@@ -37,6 +37,41 @@ async function main() {
     }
   });
 
+  await prisma.businessIntentConfig.upsert({
+    where: { tenantId: tenant.id },
+    update: {},
+    create: {
+      tenantId: tenant.id,
+      targetMrr: 20000,
+      acceptableChurnRate: 0.05,
+      alertChurnRate: 0.08,
+      alertRunwayMonths: 6,
+      summaryTone: 'concise',
+      summaryMaxActions: 4
+    }
+  });
+
+  await prisma.ideaIntentConfig.upsert({
+    where: { tenantId: tenant.id },
+    update: {},
+    create: {
+      tenantId: tenant.id,
+      arpuFloor: 50,
+      excludedDomains: ['medical', 'securities', 'gambling'],
+      founderStrengths: ['gtm', 'ops', 'partnerships'],
+      agentFitKeywords: [
+        'inbox',
+        'email',
+        'crm',
+        'ticket',
+        'document',
+        'schedule',
+        'summary'
+      ],
+      minScoreForExperiment: 9
+    }
+  });
+
   await prisma.ideaSignal.upsert({
     where: { id: 'demo-signal' },
     update: {},

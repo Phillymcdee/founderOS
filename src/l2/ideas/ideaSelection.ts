@@ -1,19 +1,24 @@
 import { prisma } from '@/l0/db';
 import { logEvent } from '@/l0/events';
-import { getIdeaFilters } from '@/l3/ideasIntent';
+import { getIdeaFilters, type IdeaFiltersResponse } from '@/l3/ideasIntent';
 import {
   draftTransformationStatement,
   runHardFilters,
   scoreIdea
 } from '@/l1/ideas/ideaScoring';
 
-export async function evaluateIdea(tenantId: string, ideaId: string) {
+export async function evaluateIdea(
+  tenantId: string,
+  ideaId: string,
+  filtersInput?: IdeaFiltersResponse
+) {
   const idea = await prisma.idea.findFirst({
     where: { id: ideaId, tenantId }
   });
   if (!idea) throw new Error('Idea not found');
 
-  const filters = await getIdeaFilters(tenantId);
+  const { filters, version: filtersVersion } =
+    filtersInput ?? (await getIdeaFilters(tenantId));
 
   const transformation =
     idea.transformation ?? draftTransformationStatement(idea);
@@ -57,7 +62,8 @@ export async function evaluateIdea(tenantId: string, ideaId: string) {
     payload: {
       hardFilters,
       scores,
-      state
+      state,
+      ideaIntentVersion: filtersVersion
     }
   });
 
@@ -117,12 +123,16 @@ export async function logIdeaExperiment(params: {
 
 export async function runIdeasRefreshFlow(tenantId: string) {
   const flowInstanceId = `ideas-refresh-${Date.now()}`;
+  const filtersResponse = await getIdeaFilters(tenantId);
 
   await logEvent({
     tenantId,
     type: 'FLOW_STARTED',
     flowInstanceId,
-    payload: { flow: 'ideasRefreshFlow' }
+    payload: {
+      flow: 'ideasRefreshFlow',
+      ideaIntentVersion: filtersResponse.version
+    }
   });
 
   const ideas = await prisma.idea.findMany({
@@ -132,7 +142,7 @@ export async function runIdeasRefreshFlow(tenantId: string) {
   const results = [];
 
   for (const idea of ideas) {
-    const updated = await evaluateIdea(tenantId, idea.id);
+    const updated = await evaluateIdea(tenantId, idea.id, filtersResponse);
     results.push({ ideaId: idea.id, state: updated.state });
   }
 
@@ -140,7 +150,11 @@ export async function runIdeasRefreshFlow(tenantId: string) {
     tenantId,
     type: 'FLOW_COMPLETED',
     flowInstanceId,
-    payload: { flow: 'ideasRefreshFlow', results }
+    payload: {
+      flow: 'ideasRefreshFlow',
+      results,
+      ideaIntentVersion: filtersResponse.version
+    }
   });
 
   return results;

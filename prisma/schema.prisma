@@ -20,6 +20,8 @@ model Tenant {
   ideas             Idea[]
   ideaExperiments   IdeaExperiment[]
   ideaSignals       IdeaSignal[]
+  businessIntentConfig BusinessIntentConfig?
+  ideaIntentConfig     IdeaIntentConfig?
 }
 
 model Account {
@@ -144,6 +146,35 @@ model IdeaSignal {
   source    String
   content   String
   createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model BusinessIntentConfig {
+  id                  String   @id @default(cuid())
+  tenantId            String   @unique
+  targetMrr           Int
+  acceptableChurnRate Float
+  alertChurnRate      Float
+  alertRunwayMonths   Int?
+  summaryTone         String
+  summaryMaxActions   Int
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model IdeaIntentConfig {
+  id                    String   @id @default(cuid())
+  tenantId              String   @unique
+  arpuFloor             Int
+  excludedDomains       String[]
+  founderStrengths      String[]
+  agentFitKeywords      String[]
+  minScoreForExperiment Int
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 }

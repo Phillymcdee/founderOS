@@ -12,6 +12,9 @@ export default function HomePage() {
         <li>
           <Link href="/founder/ideas">Founder Dashboard – Ideas</Link>
         </li>
+        <li>
+          <Link href="/founder/settings">Founder Settings</Link>
+        </li>
       </ul>
     </div>
   );

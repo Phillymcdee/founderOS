@@ -6,15 +6,17 @@ import { runFounderSummaryAgent } from '@/l1/ops/founderSummary';
 
 export async function runWeeklyFounderSummaryFlow(tenantId: string) {
   const flowInstanceId = `weekly-founder-summary-${Date.now()}`;
+  const { intent, version: intentVersion } = await getBusinessIntent(tenantId);
 
   await logEvent({
     tenantId,
     type: 'FLOW_STARTED',
     flowInstanceId,
-    payload: { flow: 'weeklyFounderSummaryFlow' }
+    payload: {
+      flow: 'weeklyFounderSummaryFlow',
+      businessIntentVersion: intentVersion
+    }
   });
-
-  const intent = await getBusinessIntent(tenantId);
 
   const snapshot = await runMetricsAggregationAgent({
     tenantId
@@ -49,7 +51,8 @@ export async function runWeeklyFounderSummaryFlow(tenantId: string) {
     tenantId,
     type: 'FOUNDERSUMMARY_APPROVAL_REQUESTED',
     flowInstanceId,
-    primaryEntityId: summary.id
+    primaryEntityId: summary.id,
+    payload: { businessIntentVersion: intentVersion }
   });
 
   await logEvent({
