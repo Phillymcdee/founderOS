@@ -16,6 +16,10 @@ The same OS supports **three domains**:
 
 All domains share the same 5-layer architecture.
 
+> **Founder usage example**  
+> This repo also backs a personal goal: using the OS to run a small portfolio of agent-native products that generate ~$1M+ annual profit with minimal ongoing human hours.  
+> See `PORTFOLIO_STRATEGY.md` for how the OS is applied to that goal.
+
 ### Code layout (concrete mapping)
 
 In this repo, the layers map to folders like this:
