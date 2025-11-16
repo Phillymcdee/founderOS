@@ -1,5 +1,6 @@
 import type { IdeaSignal } from '@prisma/client';
 import type { IdeaFilters } from '@/l3/ideasIntent';
+import { callLLM } from '@/lib/llm';
 
 export type IdeaCandidate = {
   title: string;
@@ -79,11 +80,49 @@ const CATEGORY_TEMPLATES: CategoryTemplate[] = [
   }
 ];
 
-export function runProblemMapperAgent(params: {
+/**
+ * L1 Agent: Problem Mapper
+ * Groups related signals into problem themes and generates idea candidates.
+ * 
+ * Current implementation: Rule-based keyword matching (fast, deterministic)
+ * Future enhancement: Use LLM for semantic clustering and theme extraction
+ */
+export async function runProblemMapperAgent(params: {
   signals: IdeaSignal[];
   filters: IdeaFilters;
-}): IdeaCandidate[] {
-  const { signals, filters } = params;
+  useLLM?: boolean;
+}): Promise<IdeaCandidate[]> {
+  const { signals, filters, useLLM = false } = params;
+
+  // Future LLM-based clustering (when LLM is configured)
+  if (useLLM) {
+    try {
+      const signalTexts = signals.map((s) => s.content).join('\n---\n');
+      const prompt = `Group these market signals into problem themes. Each theme should represent a distinct problem that could become a product idea.
+
+Signals:
+${signalTexts}
+
+Return a JSON array of themes, each with:
+- theme: short theme name
+- problem: clear problem statement
+- signals: array of signal indices that belong to this theme
+- icp: who has this problem`;
+
+      const response = await callLLM({
+        userPrompt: prompt,
+        systemPrompt: 'You are an expert at identifying market problems from signals. Group related signals and extract clear problem statements.',
+        responseFormat: 'json'
+      });
+
+      // TODO: Parse LLM response and map to IdeaCandidate format
+      // For now, fallback to rule-based
+    } catch (error) {
+      console.warn('LLM clustering failed, falling back to rule-based:', error);
+    }
+  }
+
+  // Rule-based keyword matching (current implementation)
   const buckets: Record<string, IdeaSignal[]> = {};
 
   for (const template of CATEGORY_TEMPLATES) {

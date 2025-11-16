@@ -16,7 +16,7 @@ export async function logEvent(params: {
     data: {
       tenantId,
       type,
-      payload,
+      payload: payload as any, // Prisma Json type
       flowInstanceId,
       primaryEntityId
     }
