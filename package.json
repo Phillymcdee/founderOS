@@ -12,7 +12,17 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "ideas:load": "ts-node scripts/loadIdeas.ts",
     "ideas:report": "ts-node scripts/reportIdeas.ts",
-    "ideas:schedule": "ts-node scripts/scheduleIdeasDiscover.ts"
+    "ideas:schedule": "ts-node scripts/scheduleIdeasDiscover.ts",
+    "inbox:schedule": "ts-node scripts/scheduleInboxSpendCron.ts",
+    "test": "ts-node --project tests/tsconfig.json tests/runner.ts",
+    "test:integration": "ts-node --project tests/tsconfig.json tests/runner.ts",
+    "test:signal": "ts-node --project tests/tsconfig.json tests/integration/signalIngestion.test.ts",
+    "test:ideas": "ts-node --project tests/tsconfig.json tests/integration/ideaGeneration.test.ts",
+    "test:experiments": "ts-node --project tests/tsconfig.json tests/integration/experimentFlow.test.ts",
+    "test:db": "ts-node --project tests/tsconfig.json tests/integration/databaseIntegrity.test.ts"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -31,6 +41,7 @@
     "eslint-config-next": "^14.2.0",
     "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.6.3"
   }
 }
