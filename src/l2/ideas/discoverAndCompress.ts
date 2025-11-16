@@ -2,11 +2,11 @@ import { prisma } from '@/l0/db';
 import { logEvent } from '@/l0/events';
 import { runSignalIngestionAgent } from '@/l1/ideas/signalIngestion';
 import { runProblemMapperAgent } from '@/l1/ideas/problemMapper';
-import { getIdeaFilters } from '@/l3/ideasIntent';
+import { getIdeaIntent } from '@/l3/ideasIntent';
 
 export async function runWeeklyDiscoverAndCompressFlow(tenantId: string) {
   const flowInstanceId = `ideas-discover-${Date.now()}`;
-  const filtersResponse = await getIdeaFilters(tenantId);
+  const ideaIntent = await getIdeaIntent(tenantId);
 
   await logEvent({
     tenantId,
@@ -14,11 +14,14 @@ export async function runWeeklyDiscoverAndCompressFlow(tenantId: string) {
     flowInstanceId,
     payload: {
       flow: 'weeklyDiscoverAndCompress',
-      ideaIntentVersion: filtersResponse.version
+      ideaIntentVersion: ideaIntent.version
     }
   });
 
-  const ingestedSignals = await runSignalIngestionAgent({ tenantId });
+  const ingestedSignals = await runSignalIngestionAgent({
+    tenantId,
+    sources: ideaIntent.sources
+  });
 
   const recentSignals = await prisma.ideaSignal.findMany({
     where: { tenantId },
@@ -28,7 +31,7 @@ export async function runWeeklyDiscoverAndCompressFlow(tenantId: string) {
 
   const candidates = runProblemMapperAgent({
     signals: recentSignals,
-    filters: filtersResponse.filters
+    filters: ideaIntent.filters
   });
 
   const createdIdeas = [];
@@ -64,7 +67,7 @@ export async function runWeeklyDiscoverAndCompressFlow(tenantId: string) {
       primaryEntityId: idea.id,
       payload: {
         sourceSignalIds: candidate.sourceSignalIds,
-        ideaIntentVersion: filtersResponse.version
+        ideaIntentVersion: ideaIntent.version
       }
     });
   }
@@ -75,7 +78,7 @@ export async function runWeeklyDiscoverAndCompressFlow(tenantId: string) {
     flowInstanceId,
     payload: {
       flow: 'weeklyDiscoverAndCompress',
-      ideaIntentVersion: filtersResponse.version,
+      ideaIntentVersion: ideaIntent.version,
       ingestedSignalCount: ingestedSignals.length,
       createdIdeaCount: createdIdeas.length
     }
@@ -86,4 +89,3 @@ export async function runWeeklyDiscoverAndCompressFlow(tenantId: string) {
     createdIdeas
   };
 }
-
