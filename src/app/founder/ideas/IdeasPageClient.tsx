@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { KanbanBoard } from './KanbanBoard';
+import { IdeasListView } from './IdeasListView';
 import { NotificationToast, useNotifications } from './NotificationToast';
 import type { Idea, IdeaExperiment } from '@prisma/client';
 
@@ -12,11 +13,13 @@ type IdeaWithExperiments = Idea & {
 interface IdeasPageClientProps {
   initialColumns: Record<string, IdeaWithExperiments[]>;
   signalMap: Record<string, { source: string; content: string }>;
+  view?: 'kanban' | 'list';
 }
 
 export function IdeasPageClient({
   initialColumns,
-  signalMap
+  signalMap,
+  view = 'kanban',
 }: IdeasPageClientProps) {
   const [columns, setColumns] = useState(initialColumns);
   const [isPending, startTransition] = useTransition();
@@ -86,11 +89,19 @@ export function IdeasPageClient({
 
   return (
     <>
-      <KanbanBoard
-        columns={columns}
-        signalMap={signalMap}
-        onStateChange={handleStateChange}
-      />
+      {view === 'kanban' ? (
+        <KanbanBoard
+          columns={columns}
+          signalMap={signalMap}
+          onStateChange={handleStateChange}
+        />
+      ) : (
+        <IdeasListView
+          columns={columns}
+          signalMap={signalMap}
+          onStateChange={handleStateChange}
+        />
+      )}
       {notifications.map((notification) => (
         <NotificationToast
           key={notification.id}

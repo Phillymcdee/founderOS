@@ -14,7 +14,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <main style={{ maxWidth: 960, margin: '0 auto', padding: '2rem' }}>
+        <main>
           {children}
         </main>
       </body>

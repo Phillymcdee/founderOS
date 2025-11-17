@@ -7,6 +7,7 @@ import {
 } from './actions';
 import { RefreshIdeasButton } from './RefreshIdeasButton';
 import { IdeasPageClient } from './IdeasPageClient';
+import { OptimizedIdeasPage } from './OptimizedIdeasPage';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,6 +87,20 @@ export default async function IdeasDashboardPage() {
     }))
   );
 
+  // Use optimized layout for better UX
+  return (
+    <OptimizedIdeasPage
+      initialColumns={columns}
+      signalMap={signalMap}
+      topCandidates={topCandidates}
+      activeExperiments={activeExperiments}
+      totalIdeas={ideas.length}
+      totalSignals={signals.length}
+    />
+  );
+
+  // Legacy layout (commented out, can be restored if needed)
+  /*
   return (
     <div>
       <h1>Founder Dashboard – Ideas</h1>
@@ -193,6 +208,7 @@ export default async function IdeasDashboardPage() {
       </section>
     </div>
   );
+  */
 }
 
 // IdeaCard moved to separate component file: src/app/founder/ideas/IdeaCard.tsx

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { IdeaCard } from './IdeaCard';
+import { colors, spacing, typography, borderRadius, shadows, transitions } from './styles';
 import type { Idea, IdeaExperiment } from '@prisma/client';
 
 type IdeaWithExperiments = Idea & {
@@ -22,14 +23,7 @@ export function KanbanBoard({
   const [draggedIdea, setDraggedIdea] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
-  const stateColors: Record<string, { bg: string; border: string }> = {
-    PENDING_REVIEW: { bg: '#fef3c7', border: '#fbbf24' },
-    BACKLOG: { bg: '#e0e7ff', border: '#818cf8' },
-    SCORING: { bg: '#dbeafe', border: '#60a5fa' },
-    EXPERIMENTING: { bg: '#fce7f3', border: '#f472b6' },
-    VALIDATED: { bg: '#d1fae5', border: '#34d399' },
-    KILLED: { bg: '#fee2e2', border: '#f87171' }
-  };
+  const stateColors = colors.state;
 
   const handleDragStart = (ideaId: string) => {
     setDraggedIdea(ideaId);
@@ -62,40 +56,44 @@ export function KanbanBoard({
     <div
       style={{
         display: 'flex',
-        gap: '1rem',
+        gap: spacing.md,
         alignItems: 'flex-start',
         overflowX: 'auto',
-        padding: '1rem 0',
-        backgroundColor: '#f9fafb',
-        borderRadius: '0.5rem',
-        paddingLeft: '1rem',
-        paddingRight: '1rem',
-        minHeight: '400px'
+        padding: `${spacing.md} 0`,
+        backgroundColor: colors.ui.surface,
+        borderRadius: borderRadius.md,
+        paddingLeft: spacing.md,
+        paddingRight: spacing.md,
+        minHeight: '500px',
+        boxShadow: shadows.sm,
       }}
     >
       {Object.entries(columns).map(([state, stateIdeas]) => {
-        const colors = stateColors[state] || {
-          bg: '#f3f4f6',
-          border: '#9ca3af'
-        };
-
         const isDragOver = dragOverColumn === state;
+
+        const stateColor = stateColors[state] || {
+          bg: colors.ui.surface,
+          border: colors.ui.border,
+          text: colors.ui.text.primary,
+        };
 
         return (
           <div
             key={state}
             style={{
-              minWidth: '280px',
-              maxWidth: '280px',
-              backgroundColor: colors.bg,
-              border: `2px solid ${isDragOver ? '#3b82f6' : colors.border}`,
-              borderRadius: '0.5rem',
-              padding: '1rem',
+              minWidth: '300px',
+              maxWidth: '300px',
+              backgroundColor: stateColor.bg,
+              border: `2px solid ${isDragOver ? colors.ui.accent : stateColor.border}`,
+              borderRadius: borderRadius.md,
+              padding: spacing.md,
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.75rem',
-              transition: 'all 0.2s',
-              opacity: draggedIdea && !isDragOver && !stateIdeas.some(i => i.id === draggedIdea) ? 0.5 : 1
+              gap: spacing.sm,
+              transition: `all ${transitions.normal}`,
+              opacity: draggedIdea && !isDragOver && !stateIdeas.some(i => i.id === draggedIdea) ? 0.5 : 1,
+              boxShadow: isDragOver ? shadows.md : shadows.sm,
+              transform: isDragOver ? 'scale(1.02)' : 'scale(1)',
             }}
             onDragOver={(e) => handleDragOver(e, state)}
             onDragLeave={handleDragLeave}
@@ -106,38 +104,54 @@ export function KanbanBoard({
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '0.5rem'
+                marginBottom: spacing.xs,
+                paddingBottom: spacing.xs,
+                borderBottom: `1px solid ${stateColor.border}`,
               }}
             >
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: typography.sizes.base,
+                  fontWeight: typography.weights.semibold,
+                  color: stateColor.text,
+                  textTransform: 'capitalize',
+                }}
+              >
                 {state.replace(/_/g, ' ')}
               </h3>
               <span
                 style={{
-                  backgroundColor: colors.border,
+                  backgroundColor: stateColor.border,
                   color: 'white',
-                  borderRadius: '9999px',
-                  padding: '0.125rem 0.5rem',
-                  fontSize: '0.75rem',
-                  fontWeight: 600
+                  borderRadius: borderRadius.full,
+                  padding: `${spacing.xs} ${spacing.sm}`,
+                  fontSize: typography.sizes.sm,
+                  fontWeight: typography.weights.semibold,
+                  minWidth: '28px',
+                  textAlign: 'center',
                 }}
               >
                 {stateIdeas.length}
               </span>
             </div>
             {stateIdeas.length === 0 ? (
-              <p
+              <div
                 style={{
-                  fontSize: '0.875rem',
-                  color: '#6b7280',
+                  fontSize: typography.sizes.sm,
+                  color: colors.ui.text.secondary,
                   fontStyle: 'italic',
                   margin: 0,
-                  padding: '2rem 0',
-                  textAlign: 'center'
+                  padding: spacing.xl,
+                  textAlign: 'center',
+                  borderRadius: borderRadius.sm,
+                  border: isDragOver ? `2px dashed ${colors.ui.accent}` : `1px dashed ${stateColor.border}`,
+                  backgroundColor: isDragOver ? `${colors.ui.accent}10` : 'transparent',
+                  transition: `all ${transitions.fast}`,
                 }}
               >
-                {isDragOver ? 'Drop here' : 'No ideas'}
-              </p>
+                {isDragOver ? '✨ Drop here' : 'No ideas'}
+              </div>
             ) : (
               stateIdeas.map((idea) => (
                 <div
@@ -146,8 +160,9 @@ export function KanbanBoard({
                   onDragStart={() => handleDragStart(idea.id)}
                   onDragEnd={handleDragEnd}
                   style={{
-                    cursor: 'grab',
-                    opacity: draggedIdea === idea.id ? 0.5 : 1
+                    cursor: draggedIdea === idea.id ? 'grabbing' : 'grab',
+                    opacity: draggedIdea === idea.id ? 0.5 : 1,
+                    transition: `opacity ${transitions.fast}`,
                   }}
                 >
                   <IdeaCard
