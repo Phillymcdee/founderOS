@@ -9,6 +9,8 @@ coverage/
 
 # Test artifacts
 test-results/
+tests/results/
+tests/reports/
 playwright-report/
 playwright/.cache/
 
