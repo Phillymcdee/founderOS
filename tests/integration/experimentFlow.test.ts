@@ -82,7 +82,7 @@ async function testExperimentInterpreter() {
     }
   });
 
-  const interpretation = runExperimentInterpreterAgent(experiment, idea.title);
+  const interpretation = await runExperimentInterpreterAgent(experiment, idea.title);
 
   results.push(
     assertTestResult(

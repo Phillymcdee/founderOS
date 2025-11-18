@@ -92,7 +92,7 @@ export async function runExperimentLoopFlow(tenantId: string) {
       let highestConfidence = 'LOW' as 'HIGH' | 'MEDIUM' | 'LOW';
 
       for (const experiment of completedExperiments) {
-        const interpretation = runExperimentInterpreterAgent(
+        const interpretation = await runExperimentInterpreterAgent(
           experiment,
           idea.title
         );

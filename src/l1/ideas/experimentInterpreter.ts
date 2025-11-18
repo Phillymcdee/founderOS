@@ -1,4 +1,5 @@
 import type { IdeaExperiment } from '@prisma/client';
+import { completeJSON } from '@/lib/llm';
 
 export type ExperimentVerdict = {
   verdict: 'PASSED' | 'FAILED' | 'INCONCLUSIVE';
@@ -10,12 +11,23 @@ export type ExperimentVerdict = {
 /**
  * L1 Agent: Experiment Interpreter
  * Analyzes experiment results and suggests verdicts.
- * Uses rule-based logic that can be enhanced with LLM later.
+ * Uses LLM for intelligent interpretation with keyword-based fallback.
  */
-export function runExperimentInterpreterAgent(
+export async function runExperimentInterpreterAgent(
   experiment: IdeaExperiment,
   ideaTitle: string
-): ExperimentVerdict {
+): Promise<ExperimentVerdict> {
+  // Try LLM-based interpretation first
+  try {
+    const llmVerdict = await interpretWithLLM(experiment, ideaTitle);
+    if (llmVerdict) {
+      return llmVerdict;
+    }
+  } catch (error) {
+    console.warn('LLM interpretation failed, falling back to keyword-based logic:', error);
+  }
+
+  // Fallback to keyword-based logic
   // If result is already set, interpret it
   if (experiment.result && experiment.result !== 'PENDING') {
     return interpretExistingResult(experiment, ideaTitle);
@@ -23,6 +35,81 @@ export function runExperimentInterpreterAgent(
 
   // Otherwise, analyze the description for patterns
   return analyzeExperimentDescription(experiment, ideaTitle);
+}
+
+/**
+ * Interpret experiment using LLM
+ */
+async function interpretWithLLM(
+  experiment: IdeaExperiment,
+  ideaTitle: string
+): Promise<ExperimentVerdict | null> {
+  const systemPrompt = `You are an expert product experiment reviewer. Your job is to analyze experiment results and provide clear, actionable verdicts.
+
+You must respond with a JSON object matching this exact structure:
+{
+  "verdict": "PASSED" | "FAILED" | "INCONCLUSIVE",
+  "confidence": "HIGH" | "MEDIUM" | "LOW",
+  "reasoning": "1-3 sentences explaining your verdict, be specific about what signals led to this conclusion",
+  "nextSteps": ["concrete action 1", "concrete action 2", ...]
+}
+
+Guidelines:
+- PASSED: Clear positive signals that validate the idea (e.g., strong interest, measurable value, successful automation)
+- FAILED: Clear negative signals that invalidate the idea (e.g., no interest, workflow doesn't work, automation fails)
+- INCONCLUSIVE: Mixed signals, insufficient data, or unclear results
+- HIGH confidence: Very clear signals (e.g., "15 people signed up" vs "some interest")
+- MEDIUM confidence: Moderate signals that suggest a direction but need more validation
+- LOW confidence: Unclear or insufficient information
+
+For experiment types:
+- SIGNAL tests: Look for genuine interest/pain signals (not just polite responses)
+- WORKFLOW tests: Look for measurable value (time saved, errors reduced, quality improved)
+- AGENT_OWNERSHIP tests: Look for successful automation (70%+ handled, <5% error rate, reliable quality)
+
+Be specific in your reasoning. Reference actual metrics, quotes, or observations from the experiment description.`;
+
+  const userPrompt = `Analyze this experiment and provide a verdict.
+
+Idea: "${ideaTitle}"
+Experiment Type: ${experiment.type}
+Current Result: ${experiment.result || 'PENDING'}
+
+Experiment Description:
+"""
+${experiment.description}
+"""
+
+Provide your analysis as JSON with verdict, confidence, reasoning, and nextSteps.`;
+
+  try {
+    const verdict = await completeJSON<ExperimentVerdict>(
+      userPrompt,
+      systemPrompt
+    );
+
+    // Validate the response structure
+    if (
+      verdict &&
+      typeof verdict === 'object' &&
+      ['PASSED', 'FAILED', 'INCONCLUSIVE'].includes(verdict.verdict) &&
+      ['HIGH', 'MEDIUM', 'LOW'].includes(verdict.confidence) &&
+      typeof verdict.reasoning === 'string'
+    ) {
+      return {
+        verdict: verdict.verdict,
+        confidence: verdict.confidence,
+        reasoning: verdict.reasoning,
+        nextSteps: Array.isArray(verdict.nextSteps) ? verdict.nextSteps : undefined,
+      };
+    }
+  } catch (error) {
+    // If LLM call fails or returns invalid structure, return null to trigger fallback
+    console.warn('LLM interpretation returned invalid structure:', error);
+    return null;
+  }
+
+  return null;
 }
 
 function interpretExistingResult(

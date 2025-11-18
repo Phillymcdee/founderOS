@@ -2,7 +2,7 @@
  * LLM Abstraction Layer
  * 
  * Provides a unified interface for LLM calls across the codebase.
- * Currently uses rule-based fallbacks, but can be swapped for OpenAI/Anthropic/etc.
+ * Supports OpenAI and Anthropic with rule-based fallbacks.
  * 
  * Design principles:
  * - All LLM calls go through this abstraction
@@ -10,6 +10,9 @@
  * - Structured outputs with type safety
  * - Cost tracking and error handling
  */
+
+import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 
 type LLMProvider = 'openai' | 'anthropic' | 'rule-based';
 
@@ -108,9 +111,60 @@ async function callOpenAI<T>(options: LLMCallOptions): Promise<LLMResponse<T>> {
     return callRuleBased<T>(options);
   }
 
-  // TODO: Implement OpenAI API call
-  // For now, fallback to rule-based
-  return callRuleBased<T>(options);
+  try {
+    const openai = new OpenAI({ apiKey });
+    const model = globalConfig.model || 'gpt-4o-mini';
+    const temperature = options.temperature ?? globalConfig.temperature ?? 0.3; // Lower temp for more deterministic results
+
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+    
+    if (options.systemPrompt) {
+      messages.push({ role: 'system', content: options.systemPrompt });
+    }
+    
+    messages.push({ role: 'user', content: options.userPrompt });
+
+    const response = await openai.chat.completions.create({
+      model,
+      messages,
+      temperature,
+      max_tokens: options.maxTokens ?? 1000,
+      response_format: options.responseFormat === 'json' 
+        ? { type: 'json_object' } 
+        : undefined,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    
+    if (!content) {
+      throw new Error('No content in OpenAI response');
+    }
+
+    let parsedContent: T;
+    if (options.responseFormat === 'json') {
+      try {
+        parsedContent = JSON.parse(content) as T;
+      } catch (e) {
+        console.warn('Failed to parse JSON from OpenAI response, falling back to rule-based');
+        return callRuleBased<T>(options);
+      }
+    } else {
+      parsedContent = content as T;
+    }
+
+    return {
+      content: parsedContent,
+      provider: 'openai',
+      usage: response.usage ? {
+        promptTokens: response.usage.prompt_tokens,
+        completionTokens: response.usage.completion_tokens,
+        totalTokens: response.usage.total_tokens,
+      } : undefined,
+    };
+  } catch (error) {
+    console.warn('OpenAI API call failed, falling back to rule-based:', error);
+    return callRuleBased<T>(options);
+  }
 }
 
 async function callAnthropic<T>(
@@ -123,9 +177,55 @@ async function callAnthropic<T>(
     return callRuleBased<T>(options);
   }
 
-  // TODO: Implement Anthropic API call
-  // For now, fallback to rule-based
-  return callRuleBased<T>(options);
+  try {
+    const anthropic = new Anthropic({ apiKey });
+    const model = globalConfig.model || 'claude-3-5-sonnet-20241022';
+    const temperature = options.temperature ?? globalConfig.temperature ?? 0.3;
+
+    const systemPrompt = options.systemPrompt || '';
+    const userPrompt = options.userPrompt;
+
+    const response = await anthropic.messages.create({
+      model,
+      max_tokens: options.maxTokens ?? 1000,
+      temperature,
+      system: systemPrompt,
+      messages: [
+        { role: 'user', content: userPrompt }
+      ],
+    });
+
+    const content = response.content[0];
+    
+    if (content.type !== 'text') {
+      throw new Error('Unexpected content type from Anthropic');
+    }
+
+    let parsedContent: T;
+    if (options.responseFormat === 'json') {
+      try {
+        parsedContent = JSON.parse(content.text) as T;
+      } catch (e) {
+        console.warn('Failed to parse JSON from Anthropic response, falling back to rule-based');
+        return callRuleBased<T>(options);
+      }
+    } else {
+      parsedContent = content.text as T;
+    }
+
+    return {
+      content: parsedContent,
+      provider: 'anthropic',
+      usage: response.usage ? {
+        promptTokens: response.usage.input_tokens,
+        completionTokens: response.usage.output_tokens,
+        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+      } : undefined,
+    };
+  } catch (error) {
+    console.warn('Anthropic API call failed, falling back to rule-based:', error);
+    return callRuleBased<T>(options);
+  }
 }
 
 async function callRuleBased<T>(
