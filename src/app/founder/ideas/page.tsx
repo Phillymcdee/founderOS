@@ -94,6 +94,12 @@ export default async function IdeasDashboardPage() {
       signalMap={signalMap}
       topCandidates={topCandidates}
       activeExperiments={activeExperiments}
+      recentSignals={signals.map((s) => ({
+        id: s.id,
+        source: s.source,
+        content: s.content,
+        createdAt: s.createdAt,
+      }))}
       totalIdeas={ideas.length}
       totalSignals={signals.length}
     />

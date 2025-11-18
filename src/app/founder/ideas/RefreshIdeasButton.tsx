@@ -1,15 +1,33 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useTransition, useState } from 'react';
 import { colors, spacing, typography, borderRadius, shadows, transitions } from './styles';
 
 export function RefreshIdeasButton() {
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   const callEndpoint = (url: string) => {
-    startTransition(async () => {
-      await fetch(url, { method: 'POST' });
-      window.location.reload();
+    console.log('Button clicked, calling endpoint:', url);
+    setError(null);
+    startTransition(() => {
+      console.log('Transition started');
+      fetch(url, { method: 'POST' })
+        .then(async (response) => {
+          console.log('Response received:', response.status);
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `Failed: ${response.status} ${response.statusText}`);
+          }
+          // Small delay to show success state before reload
+          setTimeout(() => {
+            window.location.reload();
+          }, 500);
+        })
+        .catch((err) => {
+          console.error('Error calling endpoint:', err);
+          setError(err instanceof Error ? err.message : 'An error occurred');
+        });
     });
   };
 
@@ -30,12 +48,38 @@ export function RefreshIdeasButton() {
     <div
       style={{
         display: 'flex',
-        gap: spacing.md,
-        flexWrap: 'wrap',
+        flexDirection: 'column',
+        gap: spacing.sm,
       }}
     >
+      {error && (
+        <div
+          style={{
+            padding: spacing.sm,
+            backgroundColor: '#fee2e2',
+            color: '#991b1b',
+            borderRadius: borderRadius.sm,
+            fontSize: typography.sizes.sm,
+            border: '1px solid #fecaca',
+          }}
+        >
+          Error: {error}
+        </div>
+      )}
+      <div
+        style={{
+          display: 'flex',
+          gap: spacing.md,
+          flexWrap: 'wrap',
+        }}
+      >
       <button
-        onClick={() => callEndpoint('/api/ideas/discover')}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('Discover button clicked');
+          callEndpoint('/api/ideas/discover');
+        }}
         disabled={isPending}
         style={{
           ...buttonBaseStyle,
@@ -57,7 +101,11 @@ export function RefreshIdeasButton() {
         {isPending ? 'Running discovery…' : 'Discover new ideas'}
       </button>
       <button
-        onClick={() => callEndpoint('/api/ideas/refresh')}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          callEndpoint('/api/ideas/refresh');
+        }}
         disabled={isPending}
         style={{
           ...buttonBaseStyle,
@@ -79,7 +127,11 @@ export function RefreshIdeasButton() {
         {isPending ? 'Refreshing ideas…' : 'Auto-score all ideas'}
       </button>
       <button
-        onClick={() => callEndpoint('/api/ideas/experiment-loop')}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          callEndpoint('/api/ideas/experiment-loop');
+        }}
         disabled={isPending}
         style={{
           ...buttonBaseStyle,
@@ -100,6 +152,7 @@ export function RefreshIdeasButton() {
       >
         {isPending ? 'Running experiments…' : 'Run experiment loop'}
       </button>
+      </div>
     </div>
   );
 }

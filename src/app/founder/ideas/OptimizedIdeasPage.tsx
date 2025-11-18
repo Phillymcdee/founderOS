@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { RefreshIdeasButton } from './RefreshIdeasButton';
 import { IdeasPageClient } from './IdeasPageClient';
+import { createIdeaAction } from './actions';
 import { colors, spacing, typography, borderRadius, shadows, transitions } from './styles';
 import type { Idea, IdeaExperiment } from '@prisma/client';
 
@@ -21,6 +22,12 @@ interface OptimizedIdeasPageProps {
     description: string;
     result: string | null;
   }>;
+  recentSignals: Array<{
+    id: string;
+    source: string;
+    content: string;
+    createdAt: Date;
+  }>;
   totalIdeas: number;
   totalSignals: number;
 }
@@ -30,6 +37,7 @@ export function OptimizedIdeasPage({
   signalMap,
   topCandidates,
   activeExperiments,
+  recentSignals,
   totalIdeas,
   totalSignals,
 }: OptimizedIdeasPageProps) {
@@ -49,7 +57,7 @@ export function OptimizedIdeasPage({
         width: '100%',
         minHeight: '100vh',
         padding: spacing.lg,
-        backgroundColor: 'transparent',
+        backgroundColor: colors.ui.background,
       }}
     >
       {/* Header Section */}
@@ -224,6 +232,17 @@ export function OptimizedIdeasPage({
               </div>
             </InsightCard>
           )}
+
+          {/* Recent Signals */}
+          {recentSignals.length > 0 && (
+            <InsightCard title="Recent Signals" icon="📡">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                {recentSignals.slice(0, 5).map((signal) => (
+                  <SignalItem key={signal.id} signal={signal} />
+                ))}
+              </div>
+            </InsightCard>
+          )}
         </aside>
       </div>
     </div>
@@ -367,7 +386,12 @@ function QuickActionsCard({
         Quick Actions
       </h3>
       <button
-        onClick={onToggleForm}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('Toggle form button clicked');
+          onToggleForm();
+        }}
         style={{
           width: '100%',
           padding: spacing.sm,
@@ -387,26 +411,222 @@ function QuickActionsCard({
         {showNewIdeaForm ? '−' : '+'} Add Idea Manually
       </button>
       {showNewIdeaForm && (
-        <div
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            try {
+              await createIdeaAction(formData);
+              onToggleForm(); // Close form after success
+            } catch (error) {
+              console.error('Failed to create idea:', error);
+            }
+          }}
           style={{
             marginTop: spacing.sm,
             padding: spacing.sm,
             backgroundColor: colors.ui.background,
             borderRadius: borderRadius.sm,
             border: `1px solid ${colors.ui.border}`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: spacing.sm,
           }}
         >
-          <p
+          <label
             style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: spacing.xs,
               fontSize: typography.sizes.sm,
-              color: colors.ui.text.secondary,
-              margin: 0,
+              color: colors.ui.text.primary,
             }}
           >
-            Use "Discover new ideas" button above for automated discovery, or
-            add manually via the form (to be implemented).
-          </p>
-        </div>
+            Title *
+            <input
+              type="text"
+              name="title"
+              required
+              placeholder="Idea title"
+              style={{
+                padding: spacing.xs,
+                fontSize: typography.sizes.sm,
+                border: `1px solid ${colors.ui.border}`,
+                borderRadius: borderRadius.sm,
+                backgroundColor: colors.ui.surface,
+                color: colors.ui.text.primary,
+              }}
+            />
+          </label>
+          <label
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: spacing.xs,
+              fontSize: typography.sizes.sm,
+              color: colors.ui.text.primary,
+            }}
+          >
+            Description *
+            <textarea
+              name="description"
+              required
+              placeholder="What is the idea?"
+              rows={3}
+              style={{
+                padding: spacing.xs,
+                fontSize: typography.sizes.sm,
+                border: `1px solid ${colors.ui.border}`,
+                borderRadius: borderRadius.sm,
+                backgroundColor: colors.ui.surface,
+                color: colors.ui.text.primary,
+                resize: 'vertical',
+                fontFamily: 'inherit',
+              }}
+            />
+          </label>
+          <label
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: spacing.xs,
+              fontSize: typography.sizes.sm,
+              color: colors.ui.text.primary,
+            }}
+          >
+            ICP / Target Audience
+            <input
+              type="text"
+              name="icpDescription"
+              placeholder="Who is it for? (e.g., Agencies using Gmail)"
+              style={{
+                padding: spacing.xs,
+                fontSize: typography.sizes.sm,
+                border: `1px solid ${colors.ui.border}`,
+                borderRadius: borderRadius.sm,
+                backgroundColor: colors.ui.surface,
+                color: colors.ui.text.primary,
+              }}
+            />
+          </label>
+          <label
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: spacing.xs,
+              fontSize: typography.sizes.sm,
+              color: colors.ui.text.primary,
+            }}
+          >
+            Estimated ARPU ($/month)
+            <input
+              type="number"
+              name="arpuEstimate"
+              min="0"
+              step="0.01"
+              placeholder="0"
+              style={{
+                padding: spacing.xs,
+                fontSize: typography.sizes.sm,
+                border: `1px solid ${colors.ui.border}`,
+                borderRadius: borderRadius.sm,
+                backgroundColor: colors.ui.surface,
+                color: colors.ui.text.primary,
+              }}
+            />
+          </label>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: spacing.xs,
+            }}
+          >
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: spacing.xs,
+                fontSize: typography.sizes.sm,
+                color: colors.ui.text.primary,
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                name="regulatedConcern"
+                style={{
+                  cursor: 'pointer',
+                }}
+              />
+              Touches heavily regulated domain
+            </label>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: spacing.xs,
+                fontSize: typography.sizes.sm,
+                color: colors.ui.text.primary,
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                name="manualWorkHeavy"
+                style={{
+                  cursor: 'pointer',
+                }}
+              />
+              Majority of work is manual/physical
+            </label>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: spacing.xs,
+                fontSize: typography.sizes.sm,
+                color: colors.ui.text.primary,
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                name="founderFitSignal"
+                defaultChecked
+                style={{
+                  cursor: 'pointer',
+                }}
+              />
+              Strong founder fit
+            </label>
+          </div>
+          <button
+            type="submit"
+            style={{
+              padding: spacing.sm,
+              fontSize: typography.sizes.sm,
+              fontWeight: typography.weights.semibold,
+              backgroundColor: colors.ui.accent,
+              color: 'white',
+              border: 'none',
+              borderRadius: borderRadius.md,
+              cursor: 'pointer',
+              transition: `all ${transitions.fast}`,
+              marginTop: spacing.xs,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = '0.9';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = '1';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            Add Idea
+          </button>
+        </form>
       )}
     </div>
   );
@@ -614,6 +834,82 @@ function ExperimentItem({
         >
           {experiment.result || 'PENDING'}
         </span>
+      </div>
+    </div>
+  );
+}
+
+function SignalItem({
+  signal,
+}: {
+  signal: {
+    id: string;
+    source: string;
+    content: string;
+    createdAt: Date;
+  };
+}) {
+  const formatDate = (date: Date) => {
+    const d = new Date(date);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString();
+  };
+
+  return (
+    <div
+      style={{
+        padding: spacing.sm,
+        backgroundColor: colors.ui.background,
+        borderRadius: borderRadius.sm,
+        border: `1px solid ${colors.ui.border}`,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'start',
+          marginBottom: spacing.xs,
+        }}
+      >
+        <span
+          style={{
+            fontSize: typography.sizes.xs,
+            fontWeight: typography.weights.semibold,
+            color: colors.ui.accent,
+            textTransform: 'uppercase',
+          }}
+        >
+          {signal.source}
+        </span>
+        <span
+          style={{
+            fontSize: typography.sizes.xs,
+            color: colors.ui.text.tertiary,
+          }}
+        >
+          {formatDate(signal.createdAt)}
+        </span>
+      </div>
+      <div
+        style={{
+          fontSize: typography.sizes.sm,
+          color: colors.ui.text.secondary,
+          lineHeight: 1.4,
+        }}
+      >
+        {signal.content.length > 100
+          ? `${signal.content.slice(0, 100)}...`
+          : signal.content}
       </div>
     </div>
   );
