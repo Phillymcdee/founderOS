@@ -3,6 +3,7 @@ import type { IdeaFilters } from '@/l3/ideasIntent';
 import { callLLM } from '@/lib/llm';
 
 export type IdeaCandidate = {
+  templateId: string;
   title: string;
   description: string;
   icpDescription?: string;
@@ -21,6 +22,7 @@ const CATEGORY_TEMPLATES: CategoryTemplate[] = [
     id: 'inbox-spend',
     keywords: ['invoice', 'vendor', 'renewal', 'spend', 'auto-renew'],
     build: (signals, filters) => ({
+      templateId: 'inbox-spend',
       title: 'Inbox Spend Guardian Autopilot',
       description:
         'Agents monitor inboxes for invoices, flag risky renewals, and push curated savings actions with evidence.',
@@ -34,6 +36,7 @@ const CATEGORY_TEMPLATES: CategoryTemplate[] = [
     id: 'mrr-briefing',
     keywords: ['mrr', 'stripe', 'cfo', 'quickbooks', 'forecast'],
     build: (signals, filters) => ({
+      templateId: 'mrr-briefing',
       title: 'AI Finance Briefing Partner',
       description:
         'Pulls Stripe + billing data, drafts weekly CFO-ready narratives, and highlights churn / expansion anomalies.',
@@ -46,6 +49,7 @@ const CATEGORY_TEMPLATES: CategoryTemplate[] = [
     id: 'revops-guardian',
     keywords: ['crm', 'pipeline', 'revops', 'salesforce', 'hubspot'],
     build: (signals, filters) => ({
+      templateId: 'revops-guardian',
       title: 'RevOps Signal Watch',
       description:
         'Agents watch CRM hygiene, pipeline risk, and ops alerts, then recommend playbooks for AEs/CSMs.',
@@ -58,6 +62,7 @@ const CATEGORY_TEMPLATES: CategoryTemplate[] = [
     id: 'support-compressor',
     keywords: ['support', 'tickets', 'feedback', 'feature request'],
     build: (signals, filters) => ({
+      templateId: 'support-compressor',
       title: 'Support Intelligence Compressor',
       description:
         'Summarizes support tickets, groups themes, and powers weekly product/CS actions.',
@@ -70,6 +75,7 @@ const CATEGORY_TEMPLATES: CategoryTemplate[] = [
     id: 'partner-copilot',
     keywords: ['partner', 'upsell', 'client account'],
     build: (signals, filters) => ({
+      templateId: 'partner-copilot',
       title: 'Client Growth Copilot',
       description:
         'Monitors client accounts for renewals, usage drops, upsell triggers, and drafts outreach.',

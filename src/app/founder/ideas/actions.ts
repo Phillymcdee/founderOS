@@ -78,4 +78,31 @@ export async function logExperimentAction(formData: FormData) {
   revalidatePath('/founder/ideas');
 }
 
+export async function runArchetypeDemandTestAction(
+  archetypeInstanceId: string
+) {
+  const { runArchetypeDemandTestFlow } = await import(
+    '@/l2/ideas/archetypeDemandTest'
+  );
+  await runArchetypeDemandTestFlow(DEMO_TENANT_ID, archetypeInstanceId);
+  revalidatePath('/founder/ideas');
+  revalidatePath('/founder/business');
+}
+
+export async function pauseArchetypeAction(archetypeInstanceId: string) {
+  await prisma.archetypeInstance.update({
+    where: { id: archetypeInstanceId, tenantId: DEMO_TENANT_ID },
+    data: { state: 'PAUSED' }
+  });
+  revalidatePath('/founder/ideas');
+}
+
+export async function killArchetypeAction(archetypeInstanceId: string) {
+  await prisma.archetypeInstance.update({
+    where: { id: archetypeInstanceId, tenantId: DEMO_TENANT_ID },
+    data: { state: 'KILLED' }
+  });
+  revalidatePath('/founder/ideas');
+}
+
 

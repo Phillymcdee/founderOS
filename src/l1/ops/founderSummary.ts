@@ -1,4 +1,8 @@
-import { MetricsSnapshot, Event } from '@prisma/client';
+import {
+  MetricsSnapshot,
+  Event,
+  ProductRecommendation
+} from '@prisma/client';
 import { prisma } from '@/l0/db';
 import { logEvent } from '@/l0/events';
 import { BusinessIntent } from '@/l3/businessIntent';
@@ -8,13 +12,23 @@ type FounderSummaryInput = {
   metricsSnapshot: MetricsSnapshot;
   recentEvents: Event[];
   intent: BusinessIntent;
+  recommendations: ProductRecommendation[];
+  topArchetypes?: Array<{
+    id: string;
+    label: string;
+    totalScore: number | null;
+    lastDemandTestVerdict: string | null;
+    lastDemandTestAt: Date | null;
+  }>;
 };
 
 export async function runFounderSummaryAgent({
   tenantId,
   metricsSnapshot,
   recentEvents,
-  intent
+  intent,
+  recommendations,
+  topArchetypes = []
 }: FounderSummaryInput) {
   const churnRate =
     metricsSnapshot.mrr === 0
@@ -42,17 +56,56 @@ export async function runFounderSummaryAgent({
     alerts.push('Runway below preferred threshold.');
   }
 
+  const recommendationLines = recommendations.length
+    ? [
+        `Inbox Spend Guardian surfaced ${recommendations.length} pending recommendation${
+          recommendations.length === 1 ? '' : 's'
+        }.`,
+        ...recommendations.slice(0, 3).map((rec) => {
+          const savings =
+            rec.potentialSavingsCents != null
+              ? ` (≈$${(rec.potentialSavingsCents / 100).toFixed(0)} potential savings)`
+              : '';
+          return `• ${rec.vendorName}: ${rec.type.replace(/_/g, ' ')}${savings}`;
+        })
+      ]
+    : ['Inbox Spend Guardian: no pending recommendations.'];
+
+  const archetypeLines =
+    topArchetypes.length > 0
+      ? [
+          `\nTop Archetype Opportunities:`,
+          ...topArchetypes
+            .slice(0, 3)
+            .map((arch) => {
+              const verdict =
+                arch.lastDemandTestVerdict === 'PASS'
+                  ? '✅ PASS'
+                  : arch.lastDemandTestVerdict === 'FAIL'
+                    ? '❌ FAIL'
+                    : arch.lastDemandTestVerdict === 'INCONCLUSIVE'
+                      ? '⚠️ INCONCLUSIVE'
+                      : '⏳ NOT TESTED';
+              return `• ${arch.label} (score: ${arch.totalScore ?? 'N/A'}) – ${verdict}`;
+            })
+        ]
+      : [];
+
   const narrative = [
     `Weekly summary for period ending ${metricsSnapshot.periodEnd.toDateString()}.`,
     ...statusLines,
-    alerts.length ? `Alerts: ${alerts.join(' ')}` : 'No major alerts.'
+    alerts.length ? `Alerts: ${alerts.join(' ')}` : 'No major alerts.',
+    ...recommendationLines,
+    ...archetypeLines
   ].join('\n');
 
   const recommendedActions = buildRecommendedActions(
     metricsSnapshot,
     alerts,
     intent,
-    recentEvents
+    recentEvents,
+    recommendations,
+    topArchetypes
   ).join('\n');
 
   const summary = await prisma.founderSummary.create({
@@ -80,7 +133,9 @@ function buildRecommendedActions(
   metrics: MetricsSnapshot,
   alerts: string[],
   intent: BusinessIntent,
-  recentEvents: Event[]
+  recentEvents: Event[],
+  recommendations: ProductRecommendation[],
+  topArchetypes: FounderSummaryInput['topArchetypes'] = []
 ) {
   const actions: string[] = [];
 
@@ -98,6 +153,45 @@ function buildRecommendedActions(
     .map((event) => `Follow up on ${event.type.toLowerCase()}.`);
 
   actions.push(...interestingEvents);
+
+  if (recommendations.length) {
+    const highSpend = recommendations.find((rec) => rec.type === 'HIGH_SPEND');
+    const upcomingRenewal = recommendations.find(
+      (rec) => rec.type === 'UPCOMING_RENEWAL'
+    );
+
+    if (highSpend) {
+      actions.push(
+        `Review ${highSpend.vendorName} spend (Inbox Spend Guardian flagged high spend).`
+      );
+    }
+
+    if (upcomingRenewal) {
+      actions.push(
+        `Decide on ${upcomingRenewal.vendorName} before renewal on ${upcomingRenewal.periodEnd.toDateString()}.`
+      );
+    }
+  }
+
+  const topArchetype = topArchetypes
+    ?.filter((arch) => arch.totalScore && arch.totalScore >= 10)
+    .sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0))[0];
+
+  if (topArchetype) {
+    if (topArchetype.lastDemandTestVerdict === 'PASS') {
+      actions.push(
+        `Double down on "${topArchetype.label}" – demand test passed. Consider promoting to product.`
+      );
+    } else if (!topArchetype.lastDemandTestVerdict) {
+      actions.push(
+        `Run demand test for "${topArchetype.label}" (score: ${topArchetype.totalScore}) to validate market interest.`
+      );
+    } else if (topArchetype.lastDemandTestVerdict === 'INCONCLUSIVE') {
+      actions.push(
+        `Refine targeting for "${topArchetype.label}" and rerun demand test.`
+      );
+    }
+  }
 
   if (!actions.length) {
     actions.push('Stay the course and focus on steady execution.');

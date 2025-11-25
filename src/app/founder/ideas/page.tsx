@@ -30,6 +30,24 @@ export default async function IdeasDashboardPage() {
     take: 10
   });
 
+  const topArchetypes = await prisma.archetypeInstance.findMany({
+    where: {
+      tenantId: DEMO_TENANT_ID,
+      state: { notIn: ['KILLED', 'PAUSED'] }
+    },
+    orderBy: [
+      { totalScore: 'desc' },
+      { updatedAt: 'desc' }
+    ],
+    take: 5,
+    include: {
+      demandTests: {
+        orderBy: { createdAt: 'desc' },
+        take: 1
+      }
+    }
+  });
+
   const sourceSignalLookupIds = Array.from(
     new Set(
       ideas.flatMap((idea) => idea.sourceSignalIds ?? []).filter(Boolean)
@@ -94,6 +112,21 @@ export default async function IdeasDashboardPage() {
       signalMap={signalMap}
       topCandidates={topCandidates}
       activeExperiments={activeExperiments}
+      topArchetypes={topArchetypes.map((archetype) => ({
+        id: archetype.id,
+        label: archetype.label,
+        patternKey: archetype.patternKey,
+        icpKey: archetype.icpKey,
+        icpDescription: archetype.icpDescription,
+        totalScore: archetype.totalScore,
+        monetizationScore: archetype.monetizationScore,
+        dataSurfaceScore: archetype.dataSurfaceScore,
+        agentLeverageScore: archetype.agentLeverageScore,
+        reachabilityScore: archetype.reachabilityScore,
+        osFitScore: archetype.osFitScore,
+        lastDemandTest: archetype.demandTests[0] ?? null,
+        lastUpdated: archetype.updatedAt
+      }))}
       recentSignals={signals.map((s) => ({
         id: s.id,
         source: s.source,

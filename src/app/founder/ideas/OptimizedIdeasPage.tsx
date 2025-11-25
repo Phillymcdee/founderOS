@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { RefreshIdeasButton } from './RefreshIdeasButton';
 import { IdeasPageClient } from './IdeasPageClient';
 import { createIdeaAction } from './actions';
@@ -15,6 +15,28 @@ interface OptimizedIdeasPageProps {
   initialColumns: Record<string, IdeaWithExperiments[]>;
   signalMap: Record<string, { source: string; content: string }>;
   topCandidates: IdeaWithExperiments[];
+  topArchetypes: Array<{
+    id: string;
+    label: string;
+    patternKey: string;
+    icpKey: string;
+    icpDescription?: string | null;
+    totalScore?: number | null;
+    monetizationScore?: number | null;
+    dataSurfaceScore?: number | null;
+    agentLeverageScore?: number | null;
+    reachabilityScore?: number | null;
+    osFitScore?: number | null;
+    lastDemandTest: {
+      id: string;
+      verdict: string | null;
+      outreachCount: number;
+      positiveResponses: number;
+      meetingsBooked: number;
+      createdAt: Date;
+    } | null;
+    lastUpdated: Date;
+  }>;
   activeExperiments: Array<{
     ideaTitle: string;
     id: string;
@@ -36,10 +58,11 @@ export function OptimizedIdeasPage({
   initialColumns,
   signalMap,
   topCandidates,
+  topArchetypes,
   activeExperiments,
   recentSignals,
   totalIdeas,
-  totalSignals,
+  totalSignals
 }: OptimizedIdeasPageProps) {
   const [showNewIdeaForm, setShowNewIdeaForm] = useState(false);
   const [selectedView, setSelectedView] = useState<'kanban' | 'list'>('kanban');
@@ -217,6 +240,17 @@ export function OptimizedIdeasPage({
               <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                 {topCandidates.map((idea) => (
                   <CandidateItem key={idea.id} idea={idea} />
+                ))}
+              </div>
+            </InsightCard>
+          )}
+
+          {/* Top Archetype Instances */}
+          {topArchetypes.length > 0 && (
+            <InsightCard title="Top Archetype Plays" icon="🧩">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                {topArchetypes.map((archetype) => (
+                  <ArchetypeItem key={archetype.id} archetype={archetype} />
                 ))}
               </div>
             </InsightCard>
@@ -733,6 +767,219 @@ function CandidateItem({ idea }: { idea: IdeaWithExperiments }) {
         {idea.state.replace(/_/g, ' ').toLowerCase()}
       </div>
     </div>
+  );
+}
+
+function ArchetypeItem({
+  archetype
+}: {
+  archetype: OptimizedIdeasPageProps['topArchetypes'][number];
+}) {
+  const axes = [
+    { label: 'ARR', value: archetype.monetizationScore },
+    { label: 'Data', value: archetype.dataSurfaceScore },
+    { label: 'Agents', value: archetype.agentLeverageScore },
+    { label: 'Reach', value: archetype.reachabilityScore },
+    { label: 'OS', value: archetype.osFitScore }
+  ];
+
+  const verdict = archetype.lastDemandTest?.verdict ?? 'NOT TESTED';
+  const verdictColor =
+    verdict === 'PASS'
+      ? colors.score.high
+      : verdict === 'FAIL'
+        ? colors.score.low
+        : colors.ui.text.secondary;
+
+  return (
+    <div
+      style={{
+        padding: spacing.sm,
+        backgroundColor: colors.ui.background,
+        borderRadius: borderRadius.sm,
+        border: `1px solid ${colors.ui.border}`,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: spacing.xs
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}
+      >
+        <div
+          style={{
+            fontSize: typography.sizes.sm,
+            fontWeight: typography.weights.medium,
+            color: colors.ui.text.primary
+          }}
+        >
+          {archetype.label}
+        </div>
+        {archetype.totalScore != null && (
+          <span
+            style={{
+              backgroundColor:
+                archetype.totalScore >= 11
+                  ? colors.score.high
+                  : archetype.totalScore >= 9
+                    ? colors.score.medium
+                    : colors.score.low,
+              color: '#fff',
+              borderRadius: borderRadius.full,
+              padding: `2px ${spacing.xs}`,
+              fontSize: typography.sizes.xs,
+              fontWeight: typography.weights.semibold
+            }}
+          >
+            {archetype.totalScore}
+          </span>
+        )}
+      </div>
+      {archetype.icpDescription && (
+        <div
+          style={{
+            fontSize: typography.sizes.xs,
+            color: colors.ui.text.secondary
+          }}
+        >
+          {archetype.icpDescription}
+        </div>
+      )}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+          gap: spacing.xs
+        }}
+      >
+        {axes.map((axis) => (
+          <div
+            key={axis.label}
+            style={{
+              textAlign: 'center',
+              backgroundColor: colors.ui.surface,
+              borderRadius: borderRadius.sm,
+              padding: `${spacing.xs} 0`,
+              border: `1px solid ${colors.ui.border}`
+            }}
+          >
+            <div
+              style={{
+                fontSize: typography.sizes.xs,
+                color: colors.ui.text.secondary
+              }}
+            >
+              {axis.label}
+            </div>
+            <div
+              style={{
+                fontSize: typography.sizes.sm,
+                fontWeight: typography.weights.semibold,
+                color: colors.ui.text.primary
+              }}
+            >
+              {axis.value ?? '-'}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: typography.sizes.xs,
+          marginTop: spacing.xs
+        }}
+      >
+        <span style={{ color: colors.ui.text.secondary }}>
+          Updated {archetype.lastUpdated.toLocaleDateString()}
+        </span>
+        <span style={{ color: verdictColor, fontWeight: typography.weights.semibold }}>
+          {verdict}
+        </span>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          gap: spacing.xs,
+          marginTop: spacing.xs
+        }}
+      >
+        <ArchetypeActionButton
+          archetypeId={archetype.id}
+          action="run"
+          label="Test"
+        />
+        <ArchetypeActionButton
+          archetypeId={archetype.id}
+          action="pause"
+          label="Pause"
+        />
+        <ArchetypeActionButton
+          archetypeId={archetype.id}
+          action="kill"
+          label="Kill"
+        />
+      </div>
+    </div>
+  );
+}
+
+function ArchetypeActionButton({
+  archetypeId,
+  action,
+  label
+}: {
+  archetypeId: string;
+  action: 'run' | 'pause' | 'kill';
+  label: string;
+}) {
+  const [isPending, startTransition] = useTransition();
+
+  const handleClick = () => {
+    startTransition(async () => {
+      const { runArchetypeDemandTestAction, pauseArchetypeAction, killArchetypeAction } = await import('./actions');
+      if (action === 'run') {
+        await runArchetypeDemandTestAction(archetypeId);
+      } else if (action === 'pause') {
+        await pauseArchetypeAction(archetypeId);
+      } else if (action === 'kill') {
+        await killArchetypeAction(archetypeId);
+      }
+    });
+  };
+
+  const buttonColor =
+    action === 'run'
+      ? colors.ui.accent
+      : action === 'pause'
+        ? colors.ui.text.secondary
+        : colors.score.low;
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={isPending}
+      style={{
+        flex: 1,
+        padding: `${spacing.xs} ${spacing.sm}`,
+        fontSize: typography.sizes.xs,
+        fontWeight: typography.weights.medium,
+        backgroundColor: buttonColor,
+        color: 'white',
+        border: 'none',
+        borderRadius: borderRadius.sm,
+        cursor: isPending ? 'not-allowed' : 'pointer',
+        opacity: isPending ? 0.6 : 1,
+        transition: `all ${transitions.fast}`
+      }}
+    >
+      {isPending ? '...' : label}
+    </button>
   );
 }
 

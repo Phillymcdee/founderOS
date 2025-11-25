@@ -33,11 +33,39 @@ export async function runWeeklyFounderSummaryFlow(tenantId: string) {
     take: 20
   });
 
+  const pendingSpendRecommendations =
+    await prisma.productRecommendation.findMany({
+      where: {
+        tenantId,
+        status: 'PENDING_REVIEW'
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5
+    });
+
+  const topArchetypes = await prisma.archetypeInstance.findMany({
+    where: { tenantId },
+    orderBy: [
+      { totalScore: 'desc' },
+      { updatedAt: 'desc' }
+    ],
+    take: 5,
+    select: {
+      id: true,
+      label: true,
+      totalScore: true,
+      lastDemandTestVerdict: true,
+      lastDemandTestAt: true
+    }
+  });
+
   const summary = await runFounderSummaryAgent({
     tenantId,
     metricsSnapshot: snapshot,
     recentEvents,
-    intent
+    intent,
+    recommendations: pendingSpendRecommendations,
+    topArchetypes
   });
 
   await prisma.founderSummary.update({

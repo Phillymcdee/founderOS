@@ -2,7 +2,9 @@ import { prisma } from '@/l0/db';
 import { logEvent } from '@/l0/events';
 import { runSignalIngestionAgent } from '@/l1/ideas/signalIngestion';
 import { runProblemMapperAgent } from '@/l1/ideas/problemMapper';
+import { runArchetypeScorerAgent } from '@/l1/ideas/archetypeScorer';
 import { getIdeaIntent } from '@/l3/ideasIntent';
+import type { ArchetypeFramework } from '@/l3/archetypeFramework';
 import {
   draftTransformationStatement,
   runHardFilters,
@@ -126,6 +128,14 @@ export async function runWeeklyDiscoverAndCompressFlow(tenantId: string) {
         ideaIntentVersion: ideaIntent.version
       }
     });
+
+    await upsertArchetypeInstance({
+      tenantId,
+      candidate,
+      linkedIdeaId: idea.id,
+      intentVersion: ideaIntent.archetypeFramework.version,
+      framework: ideaIntent.archetypeFramework.framework
+    });
   }
 
   await logEvent({
@@ -144,4 +154,94 @@ export async function runWeeklyDiscoverAndCompressFlow(tenantId: string) {
     ingestedSignals,
     createdIdeas
   };
+}
+
+const TEMPLATE_TO_ARCHETYPE: Record<
+  string,
+  { patternKey: string; icpKey?: string }
+> = {
+  'inbox-spend': { patternKey: 'cashflow_guardian', icpKey: 'agencies' },
+  'mrr-briefing': { patternKey: 'cashflow_guardian', icpKey: 'solo_saas' },
+  'revops-guardian': {
+    patternKey: 'revops_signal_watch',
+    icpKey: 'seed_ae_teams'
+  },
+  'support-compressor': {
+    patternKey: 'ops_control_panel',
+    icpKey: 'ops_heads'
+  },
+  'partner-copilot': {
+    patternKey: 'ops_control_panel',
+    icpKey: 'agency_leads'
+  }
+};
+
+type UpsertArchetypeParams = {
+  tenantId: string;
+  candidate: Awaited<ReturnType<typeof runProblemMapperAgent>>[number];
+  linkedIdeaId: string;
+  intentVersion: string;
+  framework: ArchetypeFramework;
+};
+
+async function upsertArchetypeInstance({
+  tenantId,
+  candidate,
+  linkedIdeaId,
+  intentVersion,
+  framework
+}: UpsertArchetypeParams) {
+  const mapping = TEMPLATE_TO_ARCHETYPE[candidate.templateId];
+  if (!mapping) return;
+
+  const pattern = framework.patterns.find(
+    (entry) => entry.key === mapping.patternKey
+  );
+
+  if (!pattern) return;
+
+  const icpOption =
+    pattern.icpOptions.find((entry) => entry.key === mapping.icpKey) ??
+    pattern.icpOptions[0];
+
+  const instance = await prisma.archetypeInstance.upsert({
+    where: {
+      tenantId_patternKey_icpKey: {
+        tenantId,
+        patternKey: pattern.key,
+        icpKey: mapping.icpKey ?? 'default'
+      }
+    },
+    update: {
+      label: candidate.title,
+      summary: candidate.description,
+      icpDescription:
+        candidate.icpDescription ?? icpOption?.icpDescription ?? undefined,
+      dataSurfaces: pattern.dataSurfaces,
+      targetArpuLow: candidate.arpuEstimate ?? undefined,
+      intentVersion,
+      sourceSignalIds: candidate.sourceSignalIds,
+      linkedIdeaId
+    },
+    create: {
+      tenantId,
+      patternKey: pattern.key,
+      icpKey: mapping.icpKey ?? 'default',
+      label: candidate.title,
+      summary: candidate.description,
+      icpDescription:
+        candidate.icpDescription ?? icpOption?.icpDescription ?? undefined,
+      dataSurfaces: pattern.dataSurfaces,
+      targetArpuLow: candidate.arpuEstimate ?? undefined,
+      intentVersion,
+      sourceSignalIds: candidate.sourceSignalIds,
+      linkedIdeaId
+    }
+  });
+
+  await runArchetypeScorerAgent({
+    tenantId,
+    archetypeInstanceId: instance.id,
+    framework
+  });
 }

@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { prisma } from '@/l0/db';
+import {
+  getArchetypeFramework,
+  type ArchetypeFrameworkResponse
+} from './archetypeFramework';
 
 const IdeaFiltersSchema = z.object({
   arpuFloor: z.number(),
@@ -227,16 +231,68 @@ export async function getIdeaFilters(
 
 export type IdeaIntentResponse = IdeaFiltersResponse & {
   sources: IdeaSourceConfig;
+  archetypeFramework: ArchetypeFrameworkResponse;
+};
+
+export type DemandTestTemplate = {
+  targetLeadRules: {
+    minSignals?: number;
+    requiredKeywords?: string[];
+    excludeKeywords?: string[];
+  };
+  outreach: {
+    channel: 'email' | 'linkedin' | 'twitter';
+    tone: 'professional' | 'casual' | 'direct';
+    maxSendsPerWeek: number;
+  };
+  successMetrics: {
+    minReplyRate: number;
+    minMeetingRate: number;
+    minWillingnessSignals: number;
+  };
+  guardrails: {
+    doNotContactDomains?: string[];
+    frequencyCapDays?: number;
+  };
+};
+
+export const DEFAULT_DEMAND_TEST_TEMPLATE: DemandTestTemplate = {
+  targetLeadRules: {
+    minSignals: 1,
+    requiredKeywords: [],
+    excludeKeywords: ['spam', 'test']
+  },
+  outreach: {
+    channel: 'email',
+    tone: 'professional',
+    maxSendsPerWeek: 50
+  },
+  successMetrics: {
+    minReplyRate: 0.15,
+    minMeetingRate: 0.05,
+    minWillingnessSignals: 2
+  },
+  guardrails: {
+    doNotContactDomains: [],
+    frequencyCapDays: 30
+  }
 };
 
 export async function getIdeaIntent(
   tenantId: string
 ): Promise<IdeaIntentResponse> {
   const filtersResponse = await getIdeaFilters(tenantId);
+  const archetypeFramework = await getArchetypeFramework();
 
   return {
     ...filtersResponse,
-    sources: DEFAULT_IDEA_SOURCES
+    sources: DEFAULT_IDEA_SOURCES,
+    archetypeFramework
   };
+}
+
+export function getDemandTestTemplate(): DemandTestTemplate {
+  // In the future this can read from tenant-specific config
+  return DEFAULT_DEMAND_TEST_TEMPLATE;
 }
 
