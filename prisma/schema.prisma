@@ -22,6 +22,9 @@ model Tenant {
   ideaSignals       IdeaSignal[]
   businessIntentConfig BusinessIntentConfig?
   ideaIntentConfig     IdeaIntentConfig?
+  productEmailMessages ProductEmailMessage[]
+  productTransactions  ProductTransaction[]
+  productRecommendations ProductRecommendation[]
 }
 
 model Account {
@@ -32,6 +35,9 @@ model Account {
 
   tenant        Tenant          @relation(fields: [tenantId], references: [id])
   subscriptions Subscription[]
+  productEmailMessages ProductEmailMessage[]
+  productTransactions  ProductTransaction[]
+  productRecommendations ProductRecommendation[]
 }
 
 model Subscription {
@@ -152,6 +158,72 @@ model IdeaSignal {
   tenant Tenant @relation(fields: [tenantId], references: [id])
 }
 
+model ProductEmailMessage {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  accountId          String
+  vendorName         String
+  subject            String
+  amountCents        Int
+  currency           String   @default("USD")
+  invoiceDate        DateTime
+  servicePeriodStart DateTime?
+  servicePeriodEnd   DateTime?
+  status             String   @default("INGESTED") // INGESTED, PARSED
+  ingestedAt         DateTime @default(now())
+  parsedAt           DateTime?
+  rawPayload         Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  account     Account            @relation(fields: [accountId], references: [id])
+  transaction ProductTransaction? @relation("EmailMessageTransaction")
+}
+
+model ProductTransaction {
+  id             String   @id @default(cuid())
+  tenantId       String
+  accountId      String
+  vendorName     String
+  amountCents    Int
+  currency       String   @default("USD")
+  periodStart    DateTime
+  periodEnd      DateTime
+  status         String   @default("ACTIVE")
+  isRecurring    Boolean  @default(true)
+  emailMessageId String?  @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant        Tenant               @relation(fields: [tenantId], references: [id])
+  account       Account              @relation(fields: [accountId], references: [id])
+  emailMessage  ProductEmailMessage? @relation("EmailMessageTransaction", fields: [emailMessageId], references: [id])
+  recommendations ProductRecommendation[]
+}
+
+model ProductRecommendation {
+  id                     String   @id @default(cuid())
+  tenantId               String
+  accountId              String
+  vendorName             String
+  type                   String   // HIGH_SPEND, UPCOMING_RENEWAL, etc.
+  summary                String
+  potentialSavingsCents  Int?
+  status                 String   @default("PENDING_REVIEW")
+  periodStart            DateTime
+  periodEnd              DateTime
+  transactionId          String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  tenant       Tenant              @relation(fields: [tenantId], references: [id])
+  account      Account             @relation(fields: [accountId], references: [id])
+  transaction  ProductTransaction? @relation(fields: [transactionId], references: [id])
+
+  @@unique([tenantId, vendorName, type, periodStart, periodEnd])
+}
+
 model BusinessIntentConfig {
   id                  String   @id @default(cuid())
   tenantId            String   @unique
@@ -161,6 +233,8 @@ model BusinessIntentConfig {
   alertRunwayMonths   Int?
   summaryTone         String
   summaryMaxActions   Int
+  maxActiveProducts   Int?
+  weeklyFounderHours  Int?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -175,6 +249,8 @@ model IdeaIntentConfig {
   founderStrengths      String[]
   agentFitKeywords      String[]
   minScoreForExperiment Int
+  maxActiveExperiments  Int?
+  maxExperimentingIdeas Int?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 

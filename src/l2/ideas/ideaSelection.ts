@@ -37,10 +37,28 @@ export async function evaluateIdea(
   const passesAll = Object.values(hardFilters).every(Boolean);
   if (passesAll) {
     scores = scoreIdea(idea, filters);
-    state =
-      scores.totalScore >= filters.minScoreForExperiment
-        ? 'EXPERIMENTING'
-        : 'SCORING';
+    const meetsScoreThreshold = scores.totalScore >= filters.minScoreForExperiment;
+
+    if (meetsScoreThreshold) {
+      // Enforce a cap on how many ideas can be in EXPERIMENTING at once, if configured.
+      if (filters.maxExperimentingIdeas != null) {
+        const currentlyExperimentingCount = await prisma.idea.count({
+          where: {
+            tenantId,
+            state: 'EXPERIMENTING'
+          }
+        });
+
+        state =
+          currentlyExperimentingCount < filters.maxExperimentingIdeas
+            ? 'EXPERIMENTING'
+            : 'SCORING';
+      } else {
+        state = 'EXPERIMENTING';
+      }
+    } else {
+      state = 'SCORING';
+    }
   } else {
     state = 'KILLED';
   }
