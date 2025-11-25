@@ -6,14 +6,16 @@ const IdeaFiltersSchema = z.object({
   excludedDomains: z.array(z.string()),
   founderStrengths: z.array(z.string()),
   agentFitKeywords: z.array(z.string()),
-  minScoreForExperiment: z.number()
+  minScoreForExperiment: z.number(),
+  maxActiveExperiments: z.number().min(1).max(20).nullable(),
+  maxExperimentingIdeas: z.number().min(1).max(20).nullable()
 });
 
 export type IdeaFilters = z.infer<typeof IdeaFiltersSchema>;
 
 export const DEFAULT_IDEA_FILTERS: IdeaFilters = {
-  arpuFloor: 50,
-  excludedDomains: ['medical', 'securities', 'gambling'],
+  arpuFloor: 150,
+  excludedDomains: ['medical', 'healthcare', 'securities', 'gambling'],
   founderStrengths: ['gtm', 'ops', 'partnerships'],
   agentFitKeywords: [
     'inbox',
@@ -24,7 +26,9 @@ export const DEFAULT_IDEA_FILTERS: IdeaFilters = {
     'schedule',
     'summary'
   ],
-  minScoreForExperiment: 9
+  minScoreForExperiment: 9,
+  maxActiveExperiments: 3,
+  maxExperimentingIdeas: 5
 };
 
 export type FeedlySourceConfig = {
@@ -208,7 +212,11 @@ export async function getIdeaFilters(
     excludedDomains: config.excludedDomains,
     founderStrengths: config.founderStrengths,
     agentFitKeywords: config.agentFitKeywords,
-    minScoreForExperiment: config.minScoreForExperiment
+    minScoreForExperiment: config.minScoreForExperiment,
+    maxActiveExperiments:
+      config.maxActiveExperiments ?? DEFAULT_IDEA_FILTERS.maxActiveExperiments,
+    maxExperimentingIdeas:
+      config.maxExperimentingIdeas ?? DEFAULT_IDEA_FILTERS.maxExperimentingIdeas
   };
 
   return {

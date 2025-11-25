@@ -8,6 +8,10 @@ const BusinessIntentSchema = z.object({
     churnRate: z.number(),
     runwayMonths: z.number().nullable()
   }),
+  resourceConstraints: z.object({
+    maxActiveProducts: z.number().min(1).max(10).nullable(),
+    weeklyFounderHours: z.number().min(1).max(80).nullable()
+  }),
   summaryPreferences: z.object({
     tone: z.enum(['concise', 'narrative']),
     maxActions: z.number().min(1).max(10)
@@ -22,6 +26,10 @@ export const DEFAULT_BUSINESS_INTENT: BusinessIntent = {
   alertThresholds: {
     churnRate: 0.08,
     runwayMonths: 6
+  },
+  resourceConstraints: {
+    maxActiveProducts: 4,
+    weeklyFounderHours: 15
   },
   summaryPreferences: {
     tone: 'concise',
@@ -54,6 +62,12 @@ export async function getBusinessIntent(
     alertThresholds: {
       churnRate: config.alertChurnRate,
       runwayMonths: config.alertRunwayMonths ?? null
+    },
+    resourceConstraints: {
+      maxActiveProducts:
+        config.maxActiveProducts ?? DEFAULT_BUSINESS_INTENT.resourceConstraints.maxActiveProducts,
+      weeklyFounderHours:
+        config.weeklyFounderHours ?? DEFAULT_BUSINESS_INTENT.resourceConstraints.weeklyFounderHours
     },
     summaryPreferences: {
       tone:
